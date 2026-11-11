@@ -1,0 +1,16 @@
+.env
+**/.env
+**/.venv/
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/.pytest_cache/
+**/*.py[cod]
+backend/*.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+frontend/.tools/
+**/*.db
+**/*.log
+**/cookies.txt
+**/__debug-recording.mp4

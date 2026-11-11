@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Classflow - Learning in rhythm",
+  "short_name": "Classflow",
+  "description": "Classes, assignments, messages, and learning progress in one calm space.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f6f1",
+  "theme_color": "#294234",
+  "icons": [
+    {
+      "src": "/classflow-app.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
