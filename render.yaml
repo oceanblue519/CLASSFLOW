@@ -20,6 +20,8 @@ services:
         value: "true"
       - key: SESSION_SAME_SITE
         value: none
+      - key: SESSION_MAX_AGE_SECONDS
+        value: "2592000"
       - key: EMAIL_VERIFICATION_REQUIRED
         value: "false"
       - key: CORS_ORIGINS

@@ -104,7 +104,9 @@ EXTRA_CORS_ORIGINS=[origin.strip().rstrip("/") for origin in os.getenv("CORS_ORI
 ALLOWED_ORIGINS=list(dict.fromkeys([FRONTEND_ORIGIN,*APP_ORIGINS,*EXTRA_CORS_ORIGINS]))
 SESSION_SAME_SITE=os.getenv("SESSION_SAME_SITE","lax").lower()
 if SESSION_SAME_SITE not in {"lax","strict","none"}:raise RuntimeError("SESSION_SAME_SITE must be lax, strict, or none")
-app.add_middleware(SessionMiddleware,secret_key=os.getenv("SECRET_KEY","dev-only-change-me"),session_cookie="classflow_session",same_site=SESSION_SAME_SITE,https_only=os.getenv("COOKIE_SECURE","false").lower()=="true",max_age=43200)
+SESSION_MAX_AGE_SECONDS=int(os.getenv("SESSION_MAX_AGE_SECONDS","43200"))
+if SESSION_MAX_AGE_SECONDS<60:raise RuntimeError("SESSION_MAX_AGE_SECONDS must be at least 60")
+app.add_middleware(SessionMiddleware,secret_key=os.getenv("SECRET_KEY","dev-only-change-me"),session_cookie="classflow_session",same_site=SESSION_SAME_SITE,https_only=os.getenv("COOKIE_SECURE","false").lower()=="true",max_age=SESSION_MAX_AGE_SECONDS)
 app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=True,allow_methods=["*"],allow_headers=["Content-Type"])
 @app.middleware("http")
 async def check_request_origin(request, call_next):
