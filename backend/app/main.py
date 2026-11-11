@@ -218,7 +218,6 @@ def me(req:Request,db:Session=Depends(dbdep)):
 def roles(*rs):
  def check(u:User=Depends(me)):
   if u.role not in rs:raise HTTPException(403,"Access denied")
-  if u.role=="teacher" and not u.approved:raise HTTPException(403,"Teacher approval required")
   return u
  return check
 def access(db,u,cid):
@@ -261,7 +260,7 @@ def register(d:Register,r:Request,db:Session=Depends(dbdep)):
  if verify_required and not smtp_configured():raise HTTPException(503,"Email verification is enabled but SMTP is not configured")
  if db.scalar(select(User.id).where(User.email==email)):raise HTTPException(409,"Email already exists")
  admin=email==os.getenv("ADMIN_EMAIL","")
- u=User(name=d.name.strip(),email=email,pw=password_hash(d.password),role="admin" if admin else role,identifier=d.identifier[:80],department=d.department[:120],grade=d.grade[:80],approved=role!="teacher",email_verified=not verify_required)
+ u=User(name=d.name.strip(),email=email,pw=password_hash(d.password),role="admin" if admin else role,identifier=d.identifier[:80],department=d.department[:120],grade=d.grade[:80],approved=True,email_verified=not verify_required)
  db.add(u);db.commit();db.refresh(u)
  if verify_required:
   token=create_auth_token(db,u,"verify",timedelta(hours=24));db.commit();send_email(u.email,"Verify your Classflow email",os.getenv("FRONTEND_ORIGIN","http://localhost:5173")+"/?verify_token="+token+"\n\nThis link expires in 24 hours.")
@@ -273,7 +272,6 @@ def login(d:Login,r:Request,db:Session=Depends(dbdep)):
  if not u or not password_ok(d.password,u.pw):raise HTTPException(401,"Email or password is incorrect")
  if not u.active:raise HTTPException(403,"Account is suspended")
  if os.getenv("EMAIL_VERIFICATION_REQUIRED","false").lower()=="true" and not u.email_verified:raise HTTPException(403,"Verify your email before signing in")
- if u.role=="teacher" and not u.approved:raise HTTPException(403,"Teacher approval required")
  r.session.clear();r.session["uid"]=u.id;r.session["sv"]=u.session_version;return ud(u)
 def oauth_callback_url(provider:str,request:Request)->str:
  configured=os.getenv(provider.upper()+"_AUTH_REDIRECT_URI","").strip()
@@ -327,7 +325,6 @@ def oauth_callback(provider:str,request:Request,code:str|None=None,state:str|Non
   user=User(name=name[:160],email=email,pw=password_hash(secrets.token_urlsafe(48)),role="student",approved=True,email_verified=True)
   db.add(user);db.commit();db.refresh(user)
  if not user.active:raise HTTPException(403,"Account is suspended")
- if user.role=="teacher" and not user.approved:raise HTTPException(403,"Teacher approval required")
  request.session.clear();request.session["uid"]=user.id;request.session["sv"]=user.session_version
  return RedirectResponse(FRONTEND_ORIGIN+"?oauth=success")
 @app.post("/api/auth/logout")
@@ -382,7 +379,7 @@ def reset_password(d:ResetInput,db:Session=Depends(dbdep)):
  user=db.get(User,token.user_id);user.pw=password_hash(d.password);user.session_version+=1;token.used=True;db.commit();return {"ok":True,"message":"Password updated. Sign in with your new password."}
 @app.get("/api/dashboard")
 def dashboard(u:User=Depends(me),db:Session=Depends(dbdep)):
- if u.role=="admin":return {"user":ud(u),"stats":{"users":len(db.scalars(select(User.id)).all()),"pending":len(db.scalars(select(User.id).where(User.role=="teacher",User.approved==False)).all()),"classes":len(db.scalars(select(Classroom.id)).all())},"classes":[cd(c) for c in db.scalars(select(Classroom)).all()],"assignments":[],"notifications":[]}
+ if u.role=="admin":return {"user":ud(u),"stats":{"users":len(db.scalars(select(User.id)).all()),"teachers":len(db.scalars(select(User.id).where(User.role=="teacher")).all()),"classes":len(db.scalars(select(Classroom.id)).all())},"classes":[cd(c) for c in db.scalars(select(Classroom)).all()],"assignments":[],"notifications":[]}
  cs=db.scalars(select(Classroom).where(Classroom.teacher_id==u.id)).all() if u.role=="teacher" else db.scalars(select(Classroom).join(Enrollment).where(Enrollment.student_id==u.id)).all()
  ids=[c.id for c in cs];aa=db.scalars(select(Assignment).where(Assignment.class_id.in_(ids)).order_by(Assignment.id.desc()).limit(10)).all() if ids else []
  ns=db.scalars(select(Notification).where(Notification.user_id==u.id).order_by(Notification.id.desc()).limit(8)).all()
@@ -741,7 +738,6 @@ def list_announcements(cid:int,u:User=Depends(me),db:Session=Depends(dbdep)):
 @app.post("/api/classes/{cid}/announcements")
 def create_announcement(cid:int,d:AnnouncementInput,u:User=Depends(me),db:Session=Depends(dbdep)):
  if u.role not in ("teacher","admin"):raise HTTPException(403,"Only teachers and admins can publish class announcements.")
- if u.role=="teacher" and not u.approved:raise HTTPException(403,"Teacher approval required before publishing announcements.")
  c=access(db,u,cid)
  if u.role=="teacher" and c.teacher_id!=u.id:raise HTTPException(403,"Only the class teacher can post")
  if d.priority not in ("normal","important","urgent"):raise HTTPException(400,"Invalid priority")

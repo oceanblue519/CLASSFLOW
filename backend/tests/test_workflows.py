@@ -7,22 +7,24 @@ def make_admin(client):
     assert response.status_code==200,response.text
 def make_teacher_and_class(client,name="Biology"):
     response=register(client,"Teacher One","teacher@classflow.example.com","teacher")
-    tid=response.json()["id"]
-    login(client,"admin@classflow.example.com")
-    assert client.put(f"/api/admin/users/{tid}/approve").status_code==200
-    login(client,"teacher@classflow.example.com")
     response=client.post("/api/classes",json={"name":name,"subject":name})
     assert response.status_code==200,response.text
     return response.json()
-def test_teacher_approval_and_class_creation(client):
-    make_admin(client)
-    register(client,"Teacher One","teacher@classflow.example.com","teacher")
-    assert client.post("/api/classes",json={"name":"Biology","subject":"Science"}).status_code==403
-    login(client,"admin@classflow.example.com")
-    tid=next(u["id"] for u in client.get("/api/admin/users").json() if u["email"]=="teacher@classflow.example.com")
-    assert client.put(f"/api/admin/users/{tid}/approve").status_code==200
-    login(client,"teacher@classflow.example.com")
-    assert client.post("/api/classes",json={"name":"Biology","subject":"Science"}).status_code==200
+def test_teacher_can_create_class_immediately(client):
+    teacher=register(client,"Teacher One","teacher@classflow.example.com","teacher")
+    assert teacher.status_code==200,teacher.text
+    assert teacher.json()["role"]=="teacher"
+    response=client.post("/api/classes",json={"name":"Biology","subject":"Science"})
+    assert response.status_code==200,response.text
+    assert login(client,"teacher@classflow.example.com").status_code==200
+def test_existing_unapproved_teacher_can_sign_in_and_create_class(client):
+    from app.main import DB, User, password_hash
+    with DB() as db:
+        db.add(User(name="Teacher One",email="teacher@classflow.example.com",pw=password_hash("CorrectHorseBattery!9"),role="teacher",approved=False))
+        db.commit()
+    assert login(client,"teacher@classflow.example.com").status_code==200
+    response=client.post("/api/classes",json={"name":"Biology","subject":"Science"})
+    assert response.status_code==200,response.text
 def test_class_delete_is_owner_only_and_cleans_related_records(client):
     make_admin(client)
     course=make_teacher_and_class(client,"Biology")
